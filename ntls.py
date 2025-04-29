@@ -1,12 +1,12 @@
 import os
 import json
+import socket
 import logging
+import requests
 import threading
 import subprocess
 from pyfiglet import Figlet
 from datetime import datetime
-import socket
-import requests
 
 BLACK = "\033[0;30m"
 RED = "\033[0;31m"
@@ -283,38 +283,33 @@ def get_mobile_network_info():
     main_logger = logging.getLogger(main_logger_name)
     sensitive_logger = logging.getLogger(sensitive_logger_name)
     previous_state = None
-    max_retries = 3
-    retry_delay = 2
+    retry_delay = 5
 
     while True:
         timestamp = datetime.now().strftime('%Y-%m-%d %H:%M:%S.%f')[:-3]
         mobile_info_raw = None
         success = False
 
-        for attempt in range(max_retries):
-            try:
-                mobile_info_raw = subprocess.check_output(["termux-telephony-deviceinfo"], timeout=5).decode("utf-8")
-                success = True
-                break
+        try:
+            mobile_info_raw = subprocess.check_output(["termux-telephony-deviceinfo"], timeout=5).decode("utf-8")
+            success = True
 
-            except subprocess.TimeoutExpired:
-                main_logger.warning(f"[{timestamp}] Timeout getting mobile info (Attempt {attempt + 1}/{max_retries}). Retrying...")
-                if attempt < max_retries - 1:
-                    threading.Event().wait(retry_delay)
+        except subprocess.TimeoutExpired:
+            main_logger.warning(f"[{timestamp}] Timeout getting mobile info. Retrying in {retry_delay} seconds...")
+            threading.Event().wait(retry_delay)
+            continue
 
-                continue
+        except FileNotFoundError:
+             print(f"{RED}[{timestamp}] Error: 'termux-telephony-deviceinfo' command not found. Stopping mobile info checks.{RESET}")
+             main_logger.error(f"[{timestamp}] 'termux-telephony-deviceinfo' command not found. Stopping mobile info checks.")
+             success = False
+             break
 
-            except FileNotFoundError:
-                 print(f"{RED}[{timestamp}] Error: 'termux-telephony-deviceinfo' command not found.{RESET}")
-                 main_logger.error(f"[{timestamp}] 'termux-telephony-deviceinfo' command not found.")
-                 success = False
-                 break
+        except Exception as e:
+            main_logger.error(f"[{timestamp}] Error retrieving mobile info: {e}. Retrying in {retry_delay} seconds...")
+            threading.Event().wait(retry_delay)
+            continue
 
-            except Exception as e:
-                main_logger.error(f"[{timestamp}] Error retrieving mobile info (Attempt {attempt + 1}/{max_retries}): {e}. Retrying...")
-                if attempt < max_retries - 1:
-                    threading.Event().wait(retry_delay)
-                continue
 
         if success and mobile_info_raw:
             try:
@@ -342,11 +337,6 @@ def get_mobile_network_info():
             except Exception as e:
                  print(f"{RED}[{timestamp}] Error processing mobile info: {e}{RESET}")
                  main_logger.error(f"[{timestamp}] Error processing mobile info: {e}")
-
-
-        elif not success:
-            print(f"{RED}[{timestamp}] Failed to retrieve mobile info after {max_retries} attempts.{RESET}")
-            main_logger.error(f"[{timestamp}] Failed to retrieve mobile info after {max_retries} attempts.")
 
         threading.Event().wait(60)
 
