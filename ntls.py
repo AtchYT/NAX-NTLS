@@ -301,6 +301,7 @@ def get_mobile_network_info():
                 main_logger.warning(f"[{timestamp}] Timeout getting mobile info (Attempt {attempt + 1}/{max_retries}). Retrying...")
                 if attempt < max_retries - 1:
                     threading.Event().wait(retry_delay)
+
                 continue
 
             except FileNotFoundError:
@@ -375,7 +376,7 @@ def evaluate_network_quality():
 
 def test_download_speed(url="http://speed.cloudflare.com/__down?bytes=100000", timeout=10):
     main_logger = logging.getLogger(main_logger_name)
-    null_device = '/dev/null'
+    null_device = '/dev/null' if os.path.exists('/dev/null') else 'NUL'
     try:
         start_time = datetime.now()
         file_size_bytes = 100000
@@ -405,12 +406,77 @@ def test_download_speed(url="http://speed.cloudflare.com/__down?bytes=100000", t
 
     except FileNotFoundError:
         main_logger.error(f"Curl command not found for download speedtest.")
-        os.system("pkg install curl > /dev/null 2>&1")
         return None, None
 
     except Exception as e:
         main_logger.error(f"Download speedtest failed: {e}")
         return None, None
+
+def get_battery_status():
+    main_logger = logging.getLogger(main_logger_name)
+    try:
+        result_raw = subprocess.check_output(["termux-battery-status"], timeout=5).decode("utf-8")
+        battery_info = json.loads(result_raw)
+        return battery_info
+
+    except FileNotFoundError:
+        if not hasattr(get_battery_status, "logged_not_found"):
+            main_logger.error("'termux-battery-status' command not found. Battery monitoring disabled.")
+            get_battery_status.logged_not_found = True
+        return None
+        
+    except subprocess.TimeoutExpired:
+        main_logger.warning("Timeout getting battery status.")
+        return None
+
+    except json.JSONDecodeError:
+        main_logger.error("Error parsing battery status JSON.")
+        return None
+
+    except Exception as e:
+        main_logger.error(f"Error getting battery status: {e}")
+        return None
+
+def monitor_battery():
+    global alerted_levels
+    main_logger = logging.getLogger(main_logger_name)
+    interval_seconds = 60
+    thresholds = [10, 20, 30, 40, 50, 60, 70, 80, 90]
+
+    while True:
+        timestamp = datetime.now().strftime('%Y-%m-%d %H:%M:%S.%f')[:-3]
+        battery_info = get_battery_status()
+
+        if battery_info:
+            percentage = battery_info.get("percentage")
+            status = battery_info.get("status", "UNKNOWN")
+
+            if percentage is not None:
+                main_logger.info(f"[{timestamp}] Battery: {percentage}% ({status})")
+
+                for level in thresholds:
+                    if percentage <= level and level not in alerted_levels:
+                        print(f"{YELLOW}[ALERT] [{timestamp}] Battery level reached {percentage}% (Threshold: {level}%){RESET}")
+                        main_logger.warning(f"[{timestamp}] Battery level reached {percentage}% (Threshold: {level}%)")
+                        alerted_levels.add(level)
+
+                levels_to_remove = set()
+                for alerted_level in alerted_levels:
+                    if percentage > alerted_level:
+                        levels_to_remove.add(alerted_level)
+                        main_logger.info(f"[{timestamp}] Battery charged above {alerted_level}%. Resetting alert.")
+
+                alerted_levels -= levels_to_remove
+
+            else:
+                main_logger.warning(f"[{timestamp}] Could not determine battery percentage from status.")
+        else:
+             if hasattr(get_battery_status, "logged_not_found"):
+                 main_logger.info("Stopping battery monitoring thread due to missing command.")
+                 break
+
+        threading.Event().wait(interval_seconds)
+
 
 def monitor_network():
     setup_logger()
@@ -421,18 +487,27 @@ def monitor_network():
 
     mobile_thread = threading.Thread(target=get_mobile_network_info, daemon=True)
     dns_thread = threading.Thread(target=monitor_dns_latency, daemon=True)
+    battery_thread = threading.Thread(target=monitor_battery, daemon=True)
+
     mobile_thread.start()
     dns_thread.start()
+    battery_thread.start()
 
     while True:
         try:
             mobile_thread.join(timeout=1.0)
             dns_thread.join(timeout=1.0)
+            battery_thread.join(timeout=1.0)
 
             if not (mobile_thread.is_alive() and dns_thread.is_alive()):
-                 main_logger.error("A monitoring thread (Mobile or DNS) has unexpectedly stopped.")
-                 break
+                 main_logger.error("A critical monitoring thread (Mobile or DNS) has unexpectedly stopped.")
+
+            if not battery_thread.is_alive() and not hasattr(get_battery_status, "logged_not_found"):
+                 main_logger.warning("Battery monitoring thread has stopped unexpectedly.")
+
         except KeyboardInterrupt:
+             print(f"\n{RED}Monitoring stopping...{RESET}")
+             main_logger.info("KeyboardInterrupt received. Stopping monitoring.")
              break
 
 try:
@@ -440,6 +515,16 @@ try:
         monitor_network()
 
 except KeyboardInterrupt:
-    print(f"\n{RED}Monitoring stopped by user{RESET}")
-    logging.getLogger(main_logger_name).info("Monitoring stopped by user.")
+    print(f"\n{RED}Monitoring stopped by user (outer block){RESET}")
+    logging.getLogger(main_logger_name).info("Monitoring stopped by user (outer block).")
     logging.getLogger(sensitive_logger_name).info("--- SESSION END ---")
+
+finally:
+    main_logger = logging.getLogger(main_logger_name)
+    sensitive_logger = logging.getLogger(sensitive_logger_name)
+    if main_logger.hasHandlers():
+         main_logger.info("--- MONITORING ENDED ---")
+
+    if sensitive_logger.hasHandlers():
+         sensitive_logger.info("--- SESSION END ---")
+    print(f"{CYAN}Monitoring finished.{RESET}")
