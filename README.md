@@ -7,6 +7,7 @@ First, you need to install Termux:API from an appstore like F-Droid
 And run the following commands to continue
 
 ```bash
+pkg update
 pkg install git
 git clone https://github.com/AtchYT/NAX-NTLS.git
 cd NAX-NTLS
