@@ -1,7 +1,5 @@
 clear
-echo "NAX Entertainment - v1.0.0 | Network Test and Log System\n\n"
-echo "Updating termux packages"
-pkg update > /dev/null 2>&1
+echo "NAX Entertainment - v1.0.0 | Network Test and Log System"
 echo "Starting download of required packages\n"
 echo "Installing git"
 pkg install git > /dev/null 2>&1
