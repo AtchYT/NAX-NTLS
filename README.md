@@ -1,8 +1,8 @@
-## NAX Entertainment - v1.0.0 | Network Test and Log System for Termux (Android) cell service
+## NAX Entertainment - v1.0.0 | Network Test and Log System for Termux (Android) cellphone network service 
 
 *Termux only*
 
-First, you need to install Termux:API
+First, you need to install Termux:API from an appstore like F-Droid
 
 And run the following commands to continue
 
