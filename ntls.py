@@ -238,10 +238,23 @@ def monitor_dns_latency():
 
         if (datetime.now() - last_summary_time).total_seconds() >= interval:
             avg_latency = sum(latencies) / len(latencies) if latencies else None
-            status_color = LIGHT_GREEN if avg_latency and avg_latency < 50 else RED
-            status = "Good" if avg_latency and avg_latency < 50 else "Bad"
-            print(f"{status_color}[{timestamp}] Ping summary: Average: {avg_latency:.1f} ms ({status}){RESET}" if avg_latency else f"{RED}[{timestamp}] Ping failed.{RESET}")
-            main_logger.info(f"[{timestamp}] Ping summary: Average: {avg_latency:.1f} ms ({status})" if avg_latency else f"[{timestamp}] Ping failed.")
+            
+            status = "Unknown"
+            status_color = RED
+            if avg_latency is not None:
+                if avg_latency < 50:
+                    status = "Good"
+                    status_color = LIGHT_GREEN
+
+                elif avg_latency < 100:
+                    status = "Medium"
+                    status_color = BROWN
+                else:
+                    status = "Bad"
+                    status_color = RED
+
+            print(f"{status_color}[{timestamp}] Ping summary: Average: {avg_latency:.1f} ms ({status}){RESET}" if avg_latency is not None else f"{RED}[{timestamp}] Ping failed.{RESET}")
+            main_logger.info(f"[{timestamp}] Ping summary: Average: {avg_latency:.1f} ms ({status})" if avg_latency is not None else f"[{timestamp}] Ping failed.")
 
             packet_loss = check_packet_loss(current_dns)
             if packet_loss is not None and packet_loss > 50:
@@ -358,7 +371,7 @@ def evaluate_network_quality():
     speed_MBps, speed_Mbps = test_download_speed(download_test_url, timeout=10)
 
     print(f"{LIGHT_GREEN}[{timestamp}] Download speed: {speed_MBps:.2f} MB/s ({speed_Mbps:.2f} Mbps){RESET}" if speed_MBps is not None else f"{RED}[{timestamp}] Download test failed.{RESET}")
-    main_logger.info(f"[{timestamp}] Download speed test: {speed_MBps:.2f} MB/s ({speed_Mbps:.2f} Mbps)" if speed_MBps is not None else f"[{timestamp}] Download speed test failed.")
+    main_logger.info(f"[{timestamp}] Download speedtest: {speed_MBps:.2f} MB/s ({speed_Mbps:.2f} Mbps)" if speed_MBps is not None else f"[{timestamp}] Download speedtest failed.")
 
 def test_download_speed(url="http://speed.cloudflare.com/__down?bytes=100000", timeout=10):
     main_logger = logging.getLogger(main_logger_name)
@@ -389,11 +402,14 @@ def test_download_speed(url="http://speed.cloudflare.com/__down?bytes=100000", t
     except subprocess.CalledProcessError as e:
         main_logger.error(f"Curl command failed during download test: {e.stderr}")
         return None, None
+
     except FileNotFoundError:
-        main_logger.error(f"Curl command not found for download speed test.")
+        main_logger.error(f"Curl command not found for download speedtest.")
+        os.system("pkg install curl > /dev/null 2>&1")
         return None, None
+
     except Exception as e:
-        main_logger.error(f"Download speed test failed: {e}")
+        main_logger.error(f"Download speedtest failed: {e}")
         return None, None
 
 def monitor_network():
