@@ -54,7 +54,7 @@ sensitive_logger_name = 'ntls_sensitive'
 alerted_levels = set()
 
 def setup_logger():
-    log_filename = f"{LOG_DIR}/network_logs_{datetime.now().strftime('%Y-%m-%d')}.txt"
+    log_filename = f"{LOG_DIR}/network_logs_{datetime.now().strftime('%Y-%m-%d_%H-%M-%S')}.txt"
     main_logger = logging.getLogger(main_logger_name)
     main_logger.setLevel(logging.INFO)
     if not main_logger.handlers:
@@ -63,7 +63,7 @@ def setup_logger():
         main_handler.setFormatter(main_formatter)
         main_logger.addHandler(main_handler)
 
-    sensitive_log_filename = f"{SENSITIVE_LOG_DIR}/sens_network_logs_{datetime.now().strftime('%Y-%m-%d')}.txt"
+    sensitive_log_filename = f"{SENSITIVE_LOG_DIR}/sens_network_logs_{datetime.now().strftime('%Y-%m-%d_%H-%M-%S')}.txt"
     sensitive_logger = logging.getLogger(sensitive_logger_name)
     sensitive_logger.setLevel(logging.INFO)
     if not sensitive_logger.handlers:
@@ -91,12 +91,15 @@ def get_public_ip():
     except requests.RequestException:
         return "N/A"
 
+current_public_ip = "N/A"
 
 def log_session_start():
+    global current_public_ip
     intro()
     start_time = datetime.now().strftime('%Y-%m-%d %H:%M:%S.%f')[:-3]
     local_ips = get_local_ip_addresses()
     public_ip = get_public_ip()
+    current_public_ip = public_ip
 
     main_logger = logging.getLogger(main_logger_name)
     sensitive_logger = logging.getLogger(sensitive_logger_name)
@@ -105,6 +108,7 @@ def log_session_start():
         f"{CYAN}--- STARTING MONITOR ---\n"
         f"· Time: {start_time}\n"
         f"· Local IP(s): {', '.join(local_ips)}\n"
+        f"· Public IP: {public_ip}\n"
         f"{RESET}"
     )
 
@@ -212,13 +216,29 @@ def get_best_dns():
         return None
 
 def monitor_dns_latency():
+    global current_public_ip
     main_logger = logging.getLogger(main_logger_name)
+    sensitive_logger = logging.getLogger(sensitive_logger_name)
     max_failures, failure_count, current_dns = 5, 0, None
     latencies = []
     interval = 5
     last_summary_time = datetime.now()
+    last_public_ip_check_time = datetime.now()
+    public_ip_check_interval = 60
 
     while True:
+        timestamp = datetime.now().strftime('%Y-%m-%d %H:%M:%S.%f')[:-3]
+
+        if (datetime.now() - last_public_ip_check_time).total_seconds() >= public_ip_check_interval:
+            new_public_ip = get_public_ip()
+            if new_public_ip != "N/A" and new_public_ip != current_public_ip:
+                print(f"{YELLOW}[ALERT] [{timestamp}] Public IP changed: {current_public_ip} -> {new_public_ip}{RESET}")
+                main_logger.warning(f"[{timestamp}] Public IP changed: {current_public_ip} -> {new_public_ip}")
+                sensitive_logger.warning(f"[{timestamp}] Public IP changed: {current_public_ip} -> {new_public_ip}")
+                current_public_ip = new_public_ip
+            last_public_ip_check_time = datetime.now()
+
+
         if not current_dns:
             current_dns = get_best_dns()
             if not current_dns:
@@ -227,7 +247,6 @@ def monitor_dns_latency():
                 continue
 
         latency = ping_dns(current_dns)
-        timestamp = datetime.now().strftime('%Y-%m-%d %H:%M:%S.%f')[:-3]
 
         if latency is not None:
             failure_count = 0
@@ -441,22 +460,28 @@ def monitor_battery():
 
         if battery_info:
             percentage = battery_info.get("percentage")
-            status = battery_info.get("status", "UNKNOWN")
+            status = battery_info.get("status", "UNKNOWN").upper()
 
             if percentage is not None:
                 main_logger.info(f"[{timestamp}] Battery: {percentage}% ({status})")
 
-                for level in thresholds:
-                    if percentage <= level and level not in alerted_levels:
-                        print(f"{YELLOW}[ALERT] [{timestamp}] Battery level reached {percentage}%{RESET}")
-                        main_logger.warning(f"[{timestamp}] Battery level reached {percentage}%")
-                        alerted_levels.add(level)
+                if status == "DISCHARGING":
+                    for level in thresholds:
+                        if percentage <= level and level not in alerted_levels:
+                            print(f"{YELLOW}[ALERT] [{timestamp}] Battery level low: {percentage}% (Discharging){RESET}")
+                            main_logger.warning(f"[{timestamp}] Battery level low: {percentage}% (Discharging)")
+                            alerted_levels.add(level)
+
 
                 levels_to_remove = set()
                 for alerted_level in alerted_levels:
-                    if percentage > alerted_level:
+                    if percentage > alerted_level or status != "DISCHARGING":
                         levels_to_remove.add(alerted_level)
-                        main_logger.info(f"[{timestamp}] Battery charged above {alerted_level}%. Resetting alert.")
+                        if status != "DISCHARGING":
+                            main_logger.info(f"[{timestamp}] Battery no longer discharging. Resetting alert for {alerted_level}%.")
+                        else:
+                            main_logger.info(f"[{timestamp}] Battery charged above {alerted_level}%. Resetting alert.")
+
 
                 alerted_levels -= levels_to_remove
 
