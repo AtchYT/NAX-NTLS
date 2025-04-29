@@ -448,8 +448,8 @@ def monitor_battery():
 
                 for level in thresholds:
                     if percentage <= level and level not in alerted_levels:
-                        print(f"{YELLOW}[ALERT] [{timestamp}] Battery level reached {percentage}% (Threshold: {level}%){RESET}")
-                        main_logger.warning(f"[{timestamp}] Battery level reached {percentage}% (Threshold: {level}%)")
+                        print(f"{YELLOW}[ALERT] [{timestamp}] Battery level reached {percentage}%){RESET}")
+                        main_logger.warning(f"[{timestamp}] Battery level reached {percentage}%")
                         alerted_levels.add(level)
 
                 levels_to_remove = set()
