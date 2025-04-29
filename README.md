@@ -10,5 +10,5 @@ And run the following commands to continue
 pkg install git
 git clone https://github.com/AtchYT/NAX-NTLS.git
 cd NAX-NTLS
-chmod +x nlts_install.sh
+chmod +x ntls_install.sh
 ./ntls_install.sh
