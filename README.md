@@ -9,5 +9,6 @@ And run the following commands to continue
 ```bash
 pkg install git
 git clone https://github.com/AtchYT/NAX-NTLS.git > /dev/null 2>&1
+cd NAX-NTLS
 chmod +x nlts_install.sh
 ./ntls_install.sh
