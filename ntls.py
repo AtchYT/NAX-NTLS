@@ -33,6 +33,10 @@ RESET = "\033[0m"
 def clear():
     os.system("clear")
 
+clear()
+print(f"{CYAN}NTLS")
+print(f"{BLUE}Network Test and Log System | NAX Entertainment - v1.0.0")
+
 def intro():
     clear()
     f = Figlet(font='slant')
