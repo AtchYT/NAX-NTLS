@@ -51,6 +51,8 @@ if not os.path.exists(SENSITIVE_LOG_DIR):
 main_logger_name = 'ntls_main'
 sensitive_logger_name = 'ntls_sensitive'
 
+alerted_levels = set()
+
 def setup_logger():
     log_filename = f"{LOG_DIR}/network_logs_{datetime.now().strftime('%Y-%m-%d')}.txt"
     main_logger = logging.getLogger(main_logger_name)
