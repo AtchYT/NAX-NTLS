@@ -400,19 +400,21 @@ def monitor_network():
     setup_logger()
     log_session_start()
     main_logger = logging.getLogger(main_logger_name)
+
+    evaluate_network_quality()
+
     mobile_thread = threading.Thread(target=get_mobile_network_info, daemon=True)
     dns_thread = threading.Thread(target=monitor_dns_latency, daemon=True)
-    quality_thread = threading.Thread(target=evaluate_network_quality, daemon=True)
     mobile_thread.start()
     dns_thread.start()
-    quality_thread.start()
+
     while True:
         try:
             mobile_thread.join(timeout=1.0)
             dns_thread.join(timeout=1.0)
-            quality_thread.join(timeout=1.0)
-            if not (mobile_thread.is_alive() and dns_thread.is_alive() and quality_thread.is_alive()):
-                 main_logger.error("A monitoring thread has unexpectedly stopped.")
+
+            if not (mobile_thread.is_alive() and dns_thread.is_alive()):
+                 main_logger.error("A monitoring thread (Mobile or DNS) has unexpectedly stopped.")
                  break
         except KeyboardInterrupt:
              break
