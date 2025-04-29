@@ -16,3 +16,4 @@ echo "Installing Curl"
 pkg install curl > /dev/null 2>&1
 echo "Starting NAX-NTLS | v1.0.0"
 python3 ntls.py
+cd
