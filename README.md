@@ -7,4 +7,4 @@ Aquí están los comandos para la instalación y ejecución:
 ```bash
 git clone https://github.com/AtchYT/NAX-NTLS.git
 cd NAX-NTLS
-python ntls.py```
+python ntls.py
