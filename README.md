@@ -1,11 +1,10 @@
-## NAX Entertainment - v1.0.0 | Network Test and Log System for Termux (Android) cell service 
-
+## NAX Entertainment - v1.0.0 | Network Test and Log System for Termux (Android) cell service
 
 *Termux only*
 
+Aquí están los comandos para la instalación y ejecución:
 
-git clone https://github.com/AtchYT/NAX-NTLS.git
-
+```bash
+git clone [https://github.com/AtchYT/NAX-NTLS.git](https://github.com/AtchYT/NAX-NTLS.git)
 cd NAX-NTLS
-
 python ntls.py
